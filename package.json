@@ -1,0 +1,23 @@
+{
+  "name": "publer-gas",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kentozuka/publer-gas.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kentozuka/publer-gas/issues"
+  },
+  "homepage": "https://github.com/kentozuka/publer-gas#readme",
+  "dependencies": {
+    "@types/google-apps-script": "^1.0.54"
+  }
+}
