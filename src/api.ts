@@ -1,6 +1,5 @@
 import { json } from './lib'
 
-// retuns csv data
 // returns data by url
 function doGet(
   e: GoogleAppsScript.Events.DoGet
@@ -12,6 +11,7 @@ function doGet(
 
 // adds content to the content table
 // update permission state
+// mark as used
 function doPost(
   e: GoogleAppsScript.Events.DoPost
 ): GoogleAppsScript.Content.TextOutput {

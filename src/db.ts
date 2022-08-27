@@ -6,9 +6,9 @@ interface Content {
   username: string
   caption: string
   source: string
-  permission: string
-  scheduled: string
-  added: string
+  embed: string
+  permission: boolean
+  scheduled: boolean
 }
 
 type csvName = 'csv'
@@ -25,16 +25,20 @@ interface CSV {
 type TableName = csvName | contentName
 type TableObject = CSV | Content
 
+interface Response {
+  error: Error | false
+  data: any
+}
+
 /* = = = = = = = = = = = = = = = = = = = */
 
 abstract class Table<NAME extends TableName, OBJ extends TableObject> {
-  public sheet: GoogleAppsScript.Spreadsheet.Sheet
-  private queryTableName = 'query' as const
+  protected sheet: GoogleAppsScript.Spreadsheet.Sheet
 
   constructor(
     private ss: GoogleAppsScript.Spreadsheet.Spreadsheet,
     private name: NAME,
-    private label: (keyof OBJ)[]
+    protected label: (keyof OBJ)[]
   ) {
     this.sheet = this.cine()
   }
@@ -50,48 +54,27 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
     return cand
   }
 
-  private arr2obj(row: any[]) {
+  protected arr2obj(row: any[]) {
     return row.reduce((pr, cr, ix) => ({ ...pr, [this.label[ix]]: cr }), {})
   }
 
-  private obj2arr(obj: OBJ) {
+  protected obj2arr(obj: OBJ) {
     return Object.values(obj)
   }
 
   private getRow(rowNum: number) {
-    return this.sheet.getRange(rowNum, 1, 1, this.label.length)
+    return this.sheet.getRange(1, 1, rowNum, this.label.length)
   }
 
-  private clear(tableName: NAME | typeof this.queryTableName) {
+  private clear(tableName: NAME) {
     const sht = this.ss.getSheetByName(tableName)
     if (sht == null) return
     sht.clear()
   }
 
-  private createQueryTable() {
-    const tmp = this.ss.insertSheet()
-    tmp.setName(this.queryTableName)
-    return tmp
-  }
-
-  private getQueryTable() {
-    let cand = this.ss.getSheetByName(this.queryTableName)
-    if (cand == null) {
-      cand = this.createQueryTable()
-    }
-    return cand
-  }
-
-  private resetQueryTable() {
-    this.clear(this.queryTableName)
-  }
-
-  protected query(query: string): OBJ[][] {
-    const tmp = this.getQueryTable()
-    tmp.getRange(1, 1).setValue(query)
-    const data = tmp.getDataRange().getValues()
-    this.resetQueryTable()
-    return data.map((row) => this.arr2obj(row))
+  protected clearDataRange() {
+    const lastRow = this.sheet.getLastRow()
+    this.sheet.getRange(1, 1, lastRow, this.label.length).clear()
   }
 
   protected create(data: OBJ) {
@@ -111,9 +94,53 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
   }
 }
 
-class Csv extends Table<csvName, CSV> {}
+class Csv extends Table<csvName, CSV> {
+  returnCSV() {}
 
-class Contents extends Table<contentName, Content> {}
+  formatContentForCSV() {}
+
+  resetCSV() {
+    this.clearDataRange()
+  }
+}
+
+class Contents extends Table<contentName, Content> {
+  private rowOf(col: number, val: string) {
+    const lastRow = this.sheet.getLastRow()
+    const boxes = this.sheet.getRange(2, col, lastRow, col).getValues()
+    const ids = boxes.flat()
+    const ix = ids.indexOf(val)
+    return ix
+  }
+
+  private findRow(col: number, val: string) {
+    const ix = this.rowOf(col, val)
+    if (ix == -1) return null
+
+    const data = this.sheet
+      .getRange(ix + 1, 1, 1, this.label.length)
+      .getValues()
+    return this.arr2obj(data[0])
+  }
+
+  findRowById(id: string): Content | null {
+    return this.findRow(1, id)
+  }
+
+  findRowByUrl(url: string): Content | null {
+    return this.findRow(3, url)
+  }
+
+  insert(data: Content) {
+    this.create(data)
+  }
+
+  allowPermission(id: string) {
+    // index +1, label +1
+    const num = this.rowOf(1, id) + 2
+    this.sheet.getRange(num, 8).setValue(true)
+  }
+}
 
 class Database {
   csv: Csv
@@ -136,33 +163,63 @@ class Database {
       'username',
       'caption',
       'source',
+      'embed',
       'permission',
-      'scheduled',
-      'added'
+      'scheduled'
     ])
   }
 
-  getCSV(): string[][] {
-    return [['test']]
-  }
-
-  getContent(url: string): Content {
+  getCSV(): Response {
     return {
-      id: 'id',
-      service: 'service',
-      url: 'url',
-      username: 'username',
-      caption: 'caption',
-      source: 'source',
-      permission: 'permission',
-      scheduled: 'scheduled',
-      added: 'added'
+      error: new Error('no erro'),
+      data: ''
     }
   }
 
-  insertContent(data: any) {}
+  getContent(id: string): Response {
+    const data = this.content.findRowById(id)
+    const response = {
+      error: data == null && new Error(`Id ${id} is not on the table`),
+      data
+    }
+    return response
+  }
 
-  confirmContent(url: string) {}
+  insertContent(
+    data: Omit<Content, 'id' | 'permission' | 'scheduled'>
+  ): Response {
+    const alr = this.content.findRowByUrl(data.url)
+    const response = {
+      error: alr !== null && new Error('This url is alredy in the table'),
+      data: 'Eerror adding an entry'
+    }
+    if (alr == null) {
+      this.content.insert({
+        id: Utilities.getUuid(),
+        ...data,
+        permission: false,
+        scheduled: false
+      })
+      return response
+    }
+
+    response.data = `${data.url} is added to the table`
+    return response
+  }
+
+  confirmContent(id: string): Response {
+    const data = this.content.findRowById(id)
+    const response = {
+      error: data == null && new Error(`${id} not found on the table`),
+      data: 'Cannot confirm request'
+    }
+    if (data == null) return response
+
+    this.content.allowPermission(id)
+    response.data = `Updated ${id}!`
+
+    return response
+  }
 }
 
 export default new Database('1SoX49SBBw2xqrF4I71zQlKIYj5XP1dMSePt11cd3UR8')
