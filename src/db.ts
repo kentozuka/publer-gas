@@ -1,26 +1,68 @@
-abstract class Table<NAME extends TableName, LABEL extends TableLabel> {
+type contentName = 'content'
+interface Content {
+  id: string
+  service: string
+  url: string
+  username: string
+  caption: string
+  source: string
+  permission: string
+  scheduled: string
+  added: string
+}
+
+type csvName = 'csv'
+interface CSV {
+  Date: string
+  Message: string
+  Link: string
+  Media: string
+  URLs: string
+  Title: string
+  Labels: string
+}
+
+type TableName = csvName | contentName
+type TableObject = CSV | Content
+
+/* = = = = = = = = = = = = = = = = = = = */
+
+abstract class Table<NAME extends TableName, OBJ extends TableObject> {
   public sheet: GoogleAppsScript.Spreadsheet.Sheet
+  private queryTableName = 'query' as const
 
   constructor(
     private ss: GoogleAppsScript.Spreadsheet.Spreadsheet,
     private name: NAME,
-    private label: LABEL
+    private label: (keyof OBJ)[]
   ) {
     this.sheet = this.cine()
   }
 
+  // cine = create if not exist
   private cine() {
-    //create if not exist = cine
     let cand = this.ss.getSheetByName(this.name)
     if (cand == null) {
       cand = this.ss.insertSheet()
       cand.setName(this.name)
-      cand.appendRow(['uuid', this.label])
+      cand.appendRow([this.label])
     }
     return cand
   }
 
-  private clear(tableName: 'query' | NAME) {
+  private arr2obj(row: any[]) {
+    return row.reduce((pr, cr, ix) => ({ ...pr, [this.label[ix]]: cr }), {})
+  }
+
+  private obj2arr(obj: OBJ) {
+    return Object.values(obj)
+  }
+
+  private getRow(rowNum: number) {
+    return this.sheet.getRange(rowNum, 1, 1, this.label.length)
+  }
+
+  private clear(tableName: NAME | typeof this.queryTableName) {
     const sht = this.ss.getSheetByName(tableName)
     if (sht == null) return
     sht.clear()
@@ -28,12 +70,12 @@ abstract class Table<NAME extends TableName, LABEL extends TableLabel> {
 
   private createQueryTable() {
     const tmp = this.ss.insertSheet()
-    tmp.setName('query')
+    tmp.setName(this.queryTableName)
     return tmp
   }
 
   private getQueryTable() {
-    let cand = this.ss.getSheetByName('query')
+    let cand = this.ss.getSheetByName(this.queryTableName)
     if (cand == null) {
       cand = this.createQueryTable()
     }
@@ -41,60 +83,37 @@ abstract class Table<NAME extends TableName, LABEL extends TableLabel> {
   }
 
   private resetQueryTable() {
-    this.clear('query')
+    this.clear(this.queryTableName)
   }
 
-  private validKey(key: LABEL[number]) {
-    // doesn't know how to deal with this
-    return this.label.includes(key as never)
-  }
-
-  private fit(data: LABEL[]) {
-    const val = this.label.length == data.length
-    if (!val) console.log(`Data length ${data.length} will not fit`)
-    return val
-  }
-
-  query(query: string): { [key: string]: LABEL[number] }[][] {
+  protected query(query: string): OBJ[][] {
     const tmp = this.getQueryTable()
     tmp.getRange(1, 1).setValue(query)
     const data = tmp.getDataRange().getValues()
     this.resetQueryTable()
-    return data
+    return data.map((row) => this.arr2obj(row))
   }
 
-  objectify(data: string[]) {}
-
-  index(ix: number): string[] {
-    const range = this.sheet.getRange(ix + 1, 1, 1, this.label.length)
-    return range.getValue()
+  protected create(data: OBJ) {
+    const row = this.obj2arr(data)
+    this.sheet.appendRow(row)
   }
-
-  append(data: any[]): void {
-    if (!this.fit(data)) {
-      console.log(`Failed to append ${data.length} data to ${this.name}.`)
-      return
-    }
-
-    this.sheet.appendRow([Utilities.getUuid(), ...data])
-    console.log(`Successfully appended ${data.length} data to ${this.name}.`)
+  protected read(rowNum: number) {
+    const row = this.getRow(rowNum).getValue()
+    return this.arr2obj(row)
   }
-
-  update(key: LABEL[number], identifier: string, data: string): Content | null {
-    if (!this.validKey(key)) {
-      console.log(`Update failed on ${key}: ${identifier}`)
-      return null
-    }
+  protected update(rowNum: number, data: OBJ) {
+    const row = this.getRow(rowNum)
+    row.setValue(this.obj2arr(data))
   }
-
-  delete(key: LABEL[number]) {}
-
-  replaceCells(range: string, data: any) {}
+  protected delete(rowNum: number) {
+    this.sheet.deleteRow(rowNum)
+  }
 }
 
-class Csv extends Table<csvName, (keyof CSV)[]> {}
+class Csv extends Table<csvName, CSV> {}
 
-class Contents extends Table<contentName, (keyof Content)[]> {}
+class Contents extends Table<contentName, Content> {}
 
 class Database {
   csv: Csv
@@ -123,9 +142,23 @@ class Database {
     ])
   }
 
-  getCSV(): string[][] {}
+  getCSV(): string[][] {
+    return [['test']]
+  }
 
-  getContent(url: string): Content {}
+  getContent(url: string): Content {
+    return {
+      id: 'id',
+      service: 'service',
+      url: 'url',
+      username: 'username',
+      caption: 'caption',
+      source: 'source',
+      permission: 'permission',
+      scheduled: 'scheduled',
+      added: 'added'
+    }
+  }
 
   insertContent(data: any) {}
 

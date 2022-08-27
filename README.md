@@ -13,4 +13,4 @@ clasp push
 clasp deploy -i <Deploy ID>
 ```
 
-URL は更新してもhttps://script.google.com/macros/s/<Deploy ID>/exec のまま固定。
+URL は更新してもhttps://script.google.com/macros/s/\<Deploy ID\>/exec のまま固定。
