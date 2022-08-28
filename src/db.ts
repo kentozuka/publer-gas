@@ -16,8 +16,7 @@ interface CSV {
   Date: string
   Message: string
   Link: string
-  Media: string
-  URLs: string
+  'Media URLs': string
   Title: string
   Labels: string
 }
@@ -36,7 +35,7 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
   protected sheet: GoogleAppsScript.Spreadsheet.Sheet
 
   constructor(
-    private ss: GoogleAppsScript.Spreadsheet.Spreadsheet,
+    protected ss: GoogleAppsScript.Spreadsheet.Spreadsheet,
     private name: NAME,
     protected label: (keyof OBJ)[]
   ) {
@@ -95,12 +94,84 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
 }
 
 class Csv extends Table<csvName, CSV> {
-  returnCSV() {}
+  createCSV() {}
 
-  formatContentForCSV() {}
+  markCSVasDone() {
+    const data = this.sheet.getDataRange().getValues()
+    const ids: string[] = data.map((x) => x[5]).flat() // title (=id) is in index 5
+    // this.clearDataRange()
+  }
 
-  resetCSV() {
-    this.clearDataRange()
+  createMessage(obj: Content) {
+    return `
+
+    @${obj.username} (${obj.service}) さんの投稿をご紹介！🐶
+    素敵な投稿をありがとうございます✨
+
+    ————————————
+
+    ${obj.caption}
+
+    ————————————
+
+    🐕 @inu.tomodachiをフォローして　　🐕
+    🐕 わんちゃんコンテンツをもっと楽しむ 🐕
+
+    ————————————
+
+    かわいい!と思ったら😍😍😍
+    おもしろい!と思ったら🤣🤣🤣
+    タメになる!と思ったら🧐🧐🧐
+    とコメントしてください✨
+
+    ————————————
+
+    @inu.tomodachiをタグ付けするか
+    DMを送ると掲載されるかも🔥
+
+    ————————————
+
+    #いぬいぬぐらむ #わんこ #いぬ
+
+    ————————————
+
+    📸 dm for credit/removal
+    ⚠️ note
+    we don’t own this video/picture, all rights go to their respective owners. If owner is not provided, tagged (meaning we couldn’t find who is the owner), pls dm us with title credit issue, pic/video, owner account.
+
+    ————————————
+    `
+  }
+
+  nextNine(prev: Date) {
+    const now = new Date()
+    const next = now.getTime() > prev.getTime() ? new Date(now) : new Date(prev)
+    next.setDate(next.getDate() + 1)
+
+    return `${next.getFullYear()}/${
+      next.getMonth() + 1
+    }/${next.getDate()} 21:00`
+  }
+
+  createDate(): string {
+    const lastRow = this.sheet.getLastRow()
+    // avoiding label
+    if (lastRow == 1) return this.nextNine(new Date())
+    const lastDate = this.sheet.getRange(lastRow, 1).getValue()
+    return this.nextNine(new Date(lastDate))
+  }
+
+  addContent(row: Content) {
+    const obj = {
+      Date: this.createDate(),
+      Message: this.createMessage(row),
+      Link: '',
+      'Media URLs': row.source,
+      Title: row.id,
+      Labels: `${row.service}, ${row.id}`
+    }
+
+    this.create(obj)
   }
 }
 
@@ -116,9 +187,9 @@ class Contents extends Table<contentName, Content> {
   private findRow(col: number, val: string) {
     const ix = this.rowOf(col, val)
     if (ix == -1) return null
-
+    // index +1, label +1
     const data = this.sheet
-      .getRange(ix + 1, 1, 1, this.label.length)
+      .getRange(ix + 2, 1, 1, this.label.length)
       .getValues()
     return this.arr2obj(data[0])
   }
@@ -151,8 +222,7 @@ class Database {
       'Date',
       'Message',
       'Link',
-      'Media',
-      'URLs',
+      'Media URLs',
       'Title',
       'Labels'
     ])
@@ -190,8 +260,8 @@ class Database {
   ): Response {
     const alr = this.content.findRowByUrl(data.url)
     const response = {
-      error: alr !== null && new Error('This url is alredy in the table'),
-      data: 'Eerror adding an entry'
+      error: alr !== null && new Error('Eerror adding an entry'),
+      data: 'This url is alredy in the table'
     }
     if (alr == null) {
       this.content.insert({
@@ -210,14 +280,25 @@ class Database {
   confirmContent(id: string): Response {
     const data = this.content.findRowById(id)
     const response = {
-      error: data == null && new Error(`${id} not found on the table`),
-      data: 'Cannot confirm request'
+      error: data == null && new Error('Cannot confirm request'),
+      data: `${id} not found on the table`
     }
     if (data == null) return response
 
-    this.content.allowPermission(id)
-    response.data = `Updated ${id}!`
+    const row = this.content.findRowById(id)
+    if (row == null) {
+      response.data = `Cannot find row of ${id}`
+      return response
+    }
 
+    if (row.permission) {
+      response.data = `${row.id} is already given permission`
+      return response
+    }
+
+    this.content.allowPermission(id)
+    this.csv.addContent(row)
+    response.data = `Updated ${id} and added to the csv table!`
     return response
   }
 }

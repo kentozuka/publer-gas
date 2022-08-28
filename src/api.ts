@@ -1,7 +1,6 @@
 import { json } from './lib'
 import db from './db'
 
-// returns data by url
 function doGet(
   e: GoogleAppsScript.Events.DoGet
 ): GoogleAppsScript.Content.TextOutput {
@@ -14,9 +13,6 @@ function doGet(
   }
 }
 
-// adds content to the content table
-// update permission state
-// mark as used
 function doPost(
   e: GoogleAppsScript.Events.DoPost
 ): GoogleAppsScript.Content.TextOutput {
@@ -39,10 +35,11 @@ function doPost(
 }
 
 /**
- * TODO
+ * ToDo
  *
- * - create api fns
- * - create menu to
- *  - update csv
- *  - mark csv as done
+ * - create undo of permission
+ * - create csv update script
+ * - look for a service that can take data from ig/tk (including src)
+ * - create frontend
+ * - integrate everything
  */
