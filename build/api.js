@@ -1,3 +1,9 @@
+const json = function (data) {
+  const str = JSON.stringify(data);
+  const res = ContentService.createTextOutput().setContent(str).setMimeType(ContentService.MimeType.JSON);
+  return res;
+};
+
 /* = = = = = = = = = = = = = = = = = = = */
 class Table {
   constructor(ss, name, label) {
@@ -101,18 +107,15 @@ class Contents extends Table {
     return this.findRow(3, url);
   }
 
-  createCsvCandidates() {}
-
   insert(data) {
     this.create(data);
   }
 
   allowPermission(id) {
-    const num = this.rowOf(1, id) + 1;
+    // index +1, label +1
+    const num = this.rowOf(1, id) + 2;
     this.sheet.getRange(num, 8).setValue(true);
   }
-
-  markAsDone() {}
 
 }
 
@@ -176,23 +179,54 @@ class Database {
 
 var db = new Database('1SoX49SBBw2xqrF4I71zQlKIYj5XP1dMSePt11cd3UR8');
 
-function testConfirmation() {
-  const res = db.confirmContent('kjisadf');
-}
+function doGet(e) {
+  try {
+    const {
+      id
+    } = e.parameter;
+    const data = db.getContent(id);
+    return json(data);
+  } catch (e) {
+    return json({
+      error: e.message
+    });
+  }
+} // adds content to the content table
+// update permission state
+// mark as used
 
-function testAppend() {
-  const test = db.getContent('adsklfn');
-  console.log(Object.values(test).map(x => typeof x));
-}
 
-function testInsert() {
-  const res = db.insertContent({
-    service: 'service',
-    url: 'url',
-    username: 'username',
-    caption: 'caption',
-    source: 'source',
-    embed: 'embed'
-  });
-  console.log(res);
+function doPost(e) {
+  try {
+    const {
+      type
+    } = e.parameter;
+    const jsdt = JSON.parse(e.postData.contents);
+
+    if (type == 'insert') {
+      const res = db.insertContent(jsdt);
+      return json(res);
+    }
+
+    if (type == 'update') {
+      const res = db.confirmContent(jsdt.id);
+      return json(res);
+    }
+
+    return json({
+      message: 'Nothing happened!'
+    });
+  } catch (e) {
+    return json({
+      error: e.message
+    });
+  }
 }
+/**
+ * TODO
+ *
+ * - create api fns
+ * - create menu to
+ *  - update csv
+ *  - mark csv as done
+ */

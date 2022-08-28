@@ -200,10 +200,10 @@ class Database {
         permission: false,
         scheduled: false
       })
+      response.data = `${data.url} is added to the table`
       return response
     }
 
-    response.data = `${data.url} is added to the table`
     return response
   }
 
