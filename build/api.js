@@ -73,8 +73,16 @@ class Table {
   rowOf(col, val) {
     const lastRow = this.sheet.getLastRow();
     const boxes = this.sheet.getRange(2, col, lastRow, col).getValues();
-    const ids = boxes.flat();
-    const ix = ids.indexOf(val);
+    const vals = boxes.flat();
+    const ix = vals.indexOf(val);
+    return ix;
+  }
+
+  colOf(col, val) {
+    const lastRow = this.sheet.getLastRow();
+    const boxes = this.sheet.getRange(2, col, lastRow, 1).getValues();
+    const vals = boxes.flat();
+    const ix = vals.indexOf(val);
     return ix;
   }
 
@@ -132,7 +140,7 @@ class Csv extends Table {
 
   nextNine(prev) {
     const now = new Date();
-    const next = now.getTime() > prev.getTime() ? new Date(now) : new Date(prev);
+    const next = now.getTime() > prev.getTime() ? now : new Date(prev);
     next.setDate(next.getDate() + 1);
     return `${next.getFullYear()}/${next.getMonth() + 1}/${next.getDate()} 21:00`;
   }
@@ -158,8 +166,8 @@ class Csv extends Table {
   }
 
   removeContent(id) {
-    // ['Date','Message','Link','Media URLs','Title','Labels'] 4th has the id
-    const row = this.rowOf(4, id);
+    // ['Date','Message','Link','Media URLs','Title','Labels'] 4th has the id => 5th col 1based index
+    const row = this.colOf(5, id);
     if (row == -1) return;
     this.sheet.deleteRow(row);
   }
@@ -261,11 +269,6 @@ class Database {
 
     if (row == null) {
       response.data = `Cannot find row of ${id}`;
-      return response;
-    }
-
-    if (row.permission) {
-      response.data = `${row.id} is already given permission`;
       return response;
     }
 
