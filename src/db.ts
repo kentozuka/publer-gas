@@ -42,6 +42,10 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
     this.sheet = this.cine()
   }
 
+  protected get lastRow(): number {
+    return this.sheet.getLastRow()
+  }
+
   // cine = create if not exist
   private cine() {
     let cand = this.ss.getSheetByName(this.name)
@@ -65,15 +69,14 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
     return this.sheet.getRange(1, 1, rowNum, this.label.length)
   }
 
-  private clear(tableName: NAME) {
+  private wipe(tableName: NAME) {
     const sht = this.ss.getSheetByName(tableName)
     if (sht == null) return
     sht.clear()
   }
 
   protected clearDataRange() {
-    const lastRow = this.sheet.getLastRow()
-    this.sheet.getRange(1, 1, lastRow, this.label.length).clear()
+    this.sheet.getRange(2, 1, this.lastRow, this.label.length).clear()
   }
 
   protected create(data: OBJ) {
@@ -93,16 +96,14 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
   }
 
   protected rowOf(col: number, val: string) {
-    const lastRow = this.sheet.getLastRow()
-    const boxes = this.sheet.getRange(2, col, lastRow, col).getValues()
+    const boxes = this.sheet.getRange(2, col, this.lastRow, col).getValues()
     const vals = boxes.flat()
     const ix = vals.indexOf(val)
     return ix
   }
 
   protected colOf(col: number, val: string) {
-    const lastRow = this.sheet.getLastRow()
-    const boxes = this.sheet.getRange(2, col, lastRow, 1).getValues()
+    const boxes = this.sheet.getRange(2, col, this.lastRow, 1).getValues()
     const vals = boxes.flat()
     const ix = vals.indexOf(val)
     return ix
@@ -110,12 +111,15 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
 }
 
 class Csv extends Table<csvName, CSV> {
-  createCSV() {}
-
-  markCSVasDone() {
+  getCurrentIds() {
     const data = this.sheet.getDataRange().getValues()
-    const ids: string[] = data.map((x) => x[5]).flat() // title (=id) is in index 5
-    // this.clearDataRange()
+    data.shift()
+    const ids = data.map((x) => x[4]).flat()
+    return ids
+  }
+
+  clearData() {
+    this.clearDataRange()
   }
 
   createMessage(obj: Content) {
@@ -170,10 +174,9 @@ class Csv extends Table<csvName, CSV> {
   }
 
   createDate(): string {
-    const lastRow = this.sheet.getLastRow()
     // avoiding label
-    if (lastRow == 1) return this.nextNine(new Date())
-    const lastDate = this.sheet.getRange(lastRow, 1).getValue()
+    if (this.lastRow == 1) return this.nextNine(new Date())
+    const lastDate = this.sheet.getRange(this.lastRow, 1).getValue()
     return this.nextNine(new Date(lastDate))
   }
 
@@ -237,14 +240,20 @@ class Contents extends Table<contentName, Content> {
     const num = this.rowOf(1, id) + 2
     this.toggleBoolean('permission', num, false)
   }
+
+  markAsDone(id: string) {
+    const num = this.rowOf(1, id) + 2
+    this.toggleBoolean('scheduled', num, true)
+  }
 }
 
 class Database {
   csv: Csv
   content: Contents
+  sprd: GoogleAppsScript.Spreadsheet.Spreadsheet
   constructor(spreadSheetId: string) {
-    const sprd = SpreadsheetApp.openById(spreadSheetId)
-    this.csv = new Csv(sprd, 'csv', [
+    this.sprd = SpreadsheetApp.openById(spreadSheetId)
+    this.csv = new Csv(this.sprd, 'csv', [
       'Date',
       'Message',
       'Link',
@@ -252,7 +261,7 @@ class Database {
       'Title',
       'Labels'
     ])
-    this.content = new Contents(sprd, 'content', [
+    this.content = new Contents(this.sprd, 'content', [
       'id',
       'service',
       'url',
@@ -263,13 +272,6 @@ class Database {
       'permission',
       'scheduled'
     ])
-  }
-
-  getCSV(): Response {
-    return {
-      error: new Error('no erro'),
-      data: ''
-    }
   }
 
   getContent(id: string): Response {
@@ -328,6 +330,28 @@ class Database {
     this.csv.removeContent(id)
     response.data = `${id} reverted changes`
     return response
+  }
+
+  markAsScheduled(): Response {
+    const ids = this.csv.getCurrentIds()
+    for (const id of ids) {
+      this.content.markAsDone(id)
+    }
+    this.csv.clearData()
+
+    return {
+      error: false,
+      data: 'Done'
+    }
+  }
+
+  addMenu() {
+    this.sprd.addMenu('Publer Menu', [
+      {
+        name: '現在のCSVを登録済みにする',
+        functionName: 'csvConversion'
+      }
+    ])
   }
 }
 

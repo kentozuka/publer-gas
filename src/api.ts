@@ -1,6 +1,14 @@
 import { json } from './lib'
 import db from './db'
 
+function onOpne() {
+  db.addMenu()
+}
+
+function csvConversion() {
+  db.markAsScheduled()
+}
+
 function doGet(
   e: GoogleAppsScript.Events.DoGet
 ): GoogleAppsScript.Content.TextOutput {
@@ -42,8 +50,6 @@ function doPost(
 
 /**
  * ToDo
- *
- * - create undo of permission
  * - create csv update script
  * - look for a service that can take data from ig/tk (including src)
  * - create frontend
