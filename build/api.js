@@ -70,6 +70,14 @@ class Table {
     this.sheet.deleteRow(rowNum);
   }
 
+  rowOf(col, val) {
+    const lastRow = this.sheet.getLastRow();
+    const boxes = this.sheet.getRange(2, col, lastRow, col).getValues();
+    const ids = boxes.flat();
+    const ix = ids.indexOf(val);
+    return ix;
+  }
+
 }
 
 class Csv extends Table {
@@ -149,17 +157,16 @@ class Csv extends Table {
     this.create(obj);
   }
 
+  removeContent(id) {
+    // ['Date','Message','Link','Media URLs','Title','Labels'] 4th has the id
+    const row = this.rowOf(4, id);
+    if (row == -1) return;
+    this.sheet.deleteRow(row);
+  }
+
 }
 
 class Contents extends Table {
-  rowOf(col, val) {
-    const lastRow = this.sheet.getLastRow();
-    const boxes = this.sheet.getRange(2, col, lastRow, col).getValues();
-    const ids = boxes.flat();
-    const ix = ids.indexOf(val);
-    return ix;
-  }
-
   findRow(col, val) {
     const ix = this.rowOf(col, val);
     if (ix == -1) return null; // index +1, label +1
@@ -180,10 +187,21 @@ class Contents extends Table {
     this.create(data);
   }
 
+  toggleBoolean(type, num, val) {
+    const col = type == 'permission' ? 8 : type == 'scheduled' ? 9 : 0;
+    this.sheet.getRange(num, col).setValue(val);
+  }
+
   allowPermission(id) {
     // index +1, label +1
     const num = this.rowOf(1, id) + 2;
-    this.sheet.getRange(num, 8).setValue(true);
+    this.toggleBoolean('permission', num, true);
+  }
+
+  undoPermission(id) {
+    // index +1, label +1
+    const num = this.rowOf(1, id) + 2;
+    this.toggleBoolean('permission', num, false);
   }
 
 }
@@ -232,7 +250,7 @@ class Database {
     return response;
   }
 
-  confirmContent(id) {
+  confirmContent(id, type) {
     const data = this.content.findRowById(id);
     const response = {
       error: data == null && new Error('Cannot confirm request'),
@@ -251,9 +269,16 @@ class Database {
       return response;
     }
 
-    this.content.allowPermission(id);
-    this.csv.addContent(row);
-    response.data = `Updated ${id} and added to the csv table!`;
+    if (type == 'confirm') {
+      this.content.allowPermission(id);
+      this.csv.addContent(row);
+      response.data = `Updated ${id} and added to the csv table!`;
+      return response;
+    }
+
+    this.content.undoPermission(id);
+    this.csv.removeContent(id);
+    response.data = `${id} reverted changes`;
     return response;
   }
 
@@ -288,7 +313,12 @@ function doPost(e) {
     }
 
     if (type == 'update') {
-      const res = db.confirmContent(jsdt.id);
+      const res = db.confirmContent(jsdt.id, 'confirm');
+      return json(res);
+    }
+
+    if (type == 'undo') {
+      const res = db.confirmContent(jsdt.id, 'undo');
       return json(res);
     }
 
@@ -301,3 +331,12 @@ function doPost(e) {
     });
   }
 }
+/**
+ * ToDo
+ *
+ * - create undo of permission
+ * - create csv update script
+ * - look for a service that can take data from ig/tk (including src)
+ * - create frontend
+ * - integrate everything
+ */

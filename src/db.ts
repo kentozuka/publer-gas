@@ -91,6 +91,14 @@ abstract class Table<NAME extends TableName, OBJ extends TableObject> {
   protected delete(rowNum: number) {
     this.sheet.deleteRow(rowNum)
   }
+
+  protected rowOf(col: number, val: string) {
+    const lastRow = this.sheet.getLastRow()
+    const boxes = this.sheet.getRange(2, col, lastRow, col).getValues()
+    const ids = boxes.flat()
+    const ix = ids.indexOf(val)
+    return ix
+  }
 }
 
 class Csv extends Table<csvName, CSV> {
@@ -173,17 +181,16 @@ class Csv extends Table<csvName, CSV> {
 
     this.create(obj)
   }
+
+  removeContent(id: string) {
+    // ['Date','Message','Link','Media URLs','Title','Labels'] 4th has the id
+    const row = this.rowOf(4, id)
+    if (row == -1) return
+    this.sheet.deleteRow(row)
+  }
 }
 
 class Contents extends Table<contentName, Content> {
-  private rowOf(col: number, val: string) {
-    const lastRow = this.sheet.getLastRow()
-    const boxes = this.sheet.getRange(2, col, lastRow, col).getValues()
-    const ids = boxes.flat()
-    const ix = ids.indexOf(val)
-    return ix
-  }
-
   private findRow(col: number, val: string) {
     const ix = this.rowOf(col, val)
     if (ix == -1) return null
@@ -206,10 +213,21 @@ class Contents extends Table<contentName, Content> {
     this.create(data)
   }
 
+  toggleBoolean(type: 'permission' | 'scheduled', num: number, val: boolean) {
+    const col = type == 'permission' ? 8 : type == 'scheduled' ? 9 : 0
+    this.sheet.getRange(num, col).setValue(val)
+  }
+
   allowPermission(id: string) {
     // index +1, label +1
     const num = this.rowOf(1, id) + 2
-    this.sheet.getRange(num, 8).setValue(true)
+    this.toggleBoolean('permission', num, true)
+  }
+
+  undoPermission(id: string) {
+    // index +1, label +1
+    const num = this.rowOf(1, id) + 2
+    this.toggleBoolean('permission', num, false)
   }
 }
 
@@ -277,7 +295,7 @@ class Database {
     return response
   }
 
-  confirmContent(id: string): Response {
+  confirmContent(id: string, type: 'confirm' | 'undo'): Response {
     const data = this.content.findRowById(id)
     const response = {
       error: data == null && new Error('Cannot confirm request'),
@@ -296,9 +314,16 @@ class Database {
       return response
     }
 
-    this.content.allowPermission(id)
-    this.csv.addContent(row)
-    response.data = `Updated ${id} and added to the csv table!`
+    if (type == 'confirm') {
+      this.content.allowPermission(id)
+      this.csv.addContent(row)
+      response.data = `Updated ${id} and added to the csv table!`
+      return response
+    }
+
+    this.content.undoPermission(id)
+    this.csv.removeContent(id)
+    response.data = `${id} reverted changes`
     return response
   }
 }

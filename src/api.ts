@@ -23,8 +23,14 @@ function doPost(
       const res = db.insertContent(jsdt)
       return json(res)
     }
+
     if (type == 'update') {
-      const res = db.confirmContent(jsdt.id)
+      const res = db.confirmContent(jsdt.id, 'confirm')
+      return json(res)
+    }
+
+    if (type == 'undo') {
+      const res = db.confirmContent(jsdt.id, 'undo')
       return json(res)
     }
 
