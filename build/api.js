@@ -143,7 +143,7 @@ class Csv extends Table {
   nextNine(prev) {
     const now = new Date()
     const next = now.getTime() > prev.getTime() ? now : new Date(prev)
-    next.setDate(next.getDate() + 1)
+    next.setDate(next.getDate() + 7)
     return `${next.getFullYear()}/${
       next.getMonth() + 1
     }/${next.getDate()} 21:00`
@@ -261,18 +261,15 @@ class Database {
       error: alr !== null && new Error('Eerror adding an entry'),
       data: 'This url is alredy in the table'
     }
-
-    if (alr == null) {
-      this.content.insert({
-        id: Utilities.getUuid(),
-        ...data,
-        permission: false,
-        scheduled: false
-      })
-      response.data = `${data.url} is added to the table`
-      return response
-    }
-
+    if (alr !== null) return response
+    const uuid = Utilities.getUuid()
+    this.content.insert({
+      id: uuid,
+      ...data,
+      permission: false,
+      scheduled: false
+    })
+    response.data = uuid
     return response
   }
 
@@ -329,6 +326,15 @@ class Database {
 
 var db = new Database('1SoX49SBBw2xqrF4I71zQlKIYj5XP1dMSePt11cd3UR8')
 
+const recepient = 'kento@intd.jp'
+function sendNotification(type) {
+  GmailApp.sendEmail(
+    recepient,
+    `[${type}]新たなリクエストが送信されました。`,
+    'Open Publer to see what happened'
+  )
+}
+
 function onOpne() {
   db.addMenu()
 }
@@ -361,11 +367,13 @@ function doPost(e) {
 
     if (type == 'update') {
       const res = db.confirmContent(jsdt.id, 'confirm')
+      sendNotification(type)
       return json(res)
     }
 
     if (type == 'undo') {
       const res = db.confirmContent(jsdt.id, 'undo')
+      sendNotification(type)
       return json(res)
     }
 

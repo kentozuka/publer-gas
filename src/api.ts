@@ -1,7 +1,8 @@
 import { json } from './lib'
 import db from './db'
+import { sendNotification } from './notify'
 
-function onOpne() {
+function onOpen() {
   db.addMenu()
 }
 
@@ -34,11 +35,13 @@ function doPost(
 
     if (type == 'update') {
       const res = db.confirmContent(jsdt.id, 'confirm')
+      sendNotification(type)
       return json(res)
     }
 
     if (type == 'undo') {
       const res = db.confirmContent(jsdt.id, 'undo')
+      sendNotification(type)
       return json(res)
     }
 
