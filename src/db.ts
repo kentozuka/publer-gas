@@ -1,6 +1,7 @@
 type contentName = 'content'
 interface Content {
   id: string
+  asker: string
   service: string
   url: string
   username: string
@@ -125,7 +126,7 @@ class Csv extends Table<csvName, CSV> {
   createMessage(obj: Content) {
     return `
 
-    @${obj.username} (${obj.service}) さんの投稿をご紹介！🐶
+    ${obj.username} (${obj.service}) さんの投稿をご紹介！🐶
     素敵な投稿をありがとうございます✨
 
     ————————————
@@ -225,8 +226,9 @@ class Contents extends Table<contentName, Content> {
   }
 
   toggleBoolean(type: 'permission' | 'scheduled', num: number, val: boolean) {
-    const col = type == 'permission' ? 8 : type == 'scheduled' ? 9 : 0
-    this.sheet.getRange(num, col).setValue(val)
+    const col = this.label.indexOf(type)
+    if (col === -1) return
+    this.sheet.getRange(num, col + 1).setValue(val)
   }
 
   allowPermission(id: string) {
@@ -263,6 +265,7 @@ class Database {
     ])
     this.content = new Contents(this.sprd, 'content', [
       'id',
+      'asker',
       'service',
       'url',
       'username',
